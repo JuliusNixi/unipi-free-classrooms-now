@@ -229,7 +229,6 @@ def process_datas(infos, time = None) -> List[Dict[str, Union[str, List[str]]]]:
                     schedule = schedules[i]
                     matches = regex.findall(schedule)
                     start_time = datetime.strptime(matches[0], "%H:%M")
-                    print("Start time: ", start_time)
                     # Exclude the schedules that are already passed.
                     if time > start_time:
                         next_start_times.append(start_time)
@@ -297,7 +296,7 @@ if __name__ == '__main__':
     thread.start()
     # Wait for it to collect all the schedules pages.
     # (16 pages * 2 seconds to load JS) + 8 seconds to be sure.
-    total_time = 4 #32 + 8
+    total_time = 32 + 8
     for i in range(total_time):
         print(f"Waiting for schedules pages to be fetched... {total_time - i} seconds left.")
         sleep(1)

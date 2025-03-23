@@ -27,26 +27,39 @@ from typing import List, Dict, Optional, Union
 # To manipulate times objects.
 from datetime import datetime
 
-# Chrome options.
-chrome_options = Options()
-chrome_options.add_argument("--headless")
-chrome_options.add_argument("--disable-gpu")
-chrome_options.add_argument("--no-sandbox")
-
-# Chrome driver path.
-chrome_driver_path = ""
+driver = None
 if len(argv) <= 1:
     # On my Mac.
+
+    # Chrome driver path.
     chrome_driver_path = '/Users/juliusnixi/chromedriver-mac-arm64/chromedriver'
+
+    # Chrome options.
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+
+    service = Service(chrome_driver_path)
+
+    # Selenium driver setup.
+    driver = webdriver.Chrome(service = service, options = chrome_options)
 else:
     # On my Ubuntu ARM64 server.
+
     # sudo apt install chromium-chromedriver
+
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-gpu")
+
     from shutil import which
     chromedriver_path = which("chromedriver")
-service = Service(chrome_driver_path)
 
-# Selenium driver setup.
-driver = webdriver.Chrome(service = service, options = chrome_options)
+    service = webdriver.ChromeService(executable_path = chromedriver_path)
+
+    driver = webdriver.Chrome(options = options, service = service)
 
 # Flask setup.
 app = Flask(__name__)

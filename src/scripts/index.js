@@ -20,8 +20,10 @@ function getPolesData() {
                     let li = document.createElement("li")
 
                     let a = document.createElement("a")
+                    // Sanitize the pole name.
                     let pole_name = Object.keys(pole_obj)[0].toLowerCase().trim()
                     a.href = "/polo.html?polo=" + pole_name
+                    // Make the first letter uppercase.
                     a.textContent = pole_name.charAt(0).toUpperCase() + pole_name.slice(1)
 
                     li.appendChild(a)

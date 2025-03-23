@@ -1,7 +1,9 @@
 const API_URL = "http://localhost:8080/api/"
 
+// Return all the rooms given a pole name.
 async function getAllRooms(pole_name) {
     const ALL_ROOMS_URL = API_URL + "all_rooms_given_pole" + "?pole_name=" + pole_name
+
     let all_rooms = []
     
     await fetch(ALL_ROOMS_URL)
@@ -46,6 +48,7 @@ function getFreeClassrooms(all_rooms, pole_name) {
                     return
                 }
 
+                // Filling the list with all the rooms, assuming they are all busy.
                 let lis = []
                 all_rooms.forEach(room => {
                     let li = document.createElement("li")
@@ -53,6 +56,7 @@ function getFreeClassrooms(all_rooms, pole_name) {
                     lis.push(li)
                 })
 
+                // Updating the list with the free rooms.
                 free_classrooms_data_list.forEach(free_classroom => {
                     for (let i = 0; i < lis.length; i++) {
                         if (lis[i].textContent.includes(free_classroom["Classroom"])) {

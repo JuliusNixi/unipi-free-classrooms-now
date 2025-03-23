@@ -35,10 +35,14 @@ chrome_options.add_argument("--no-sandbox")
 
 # Chrome driver path.
 chrome_driver_path = ""
-if len(argv) != 2:
+if len(argv) <= 1:
+    # On my Mac.
     chrome_driver_path = '/Users/juliusnixi/chromedriver-mac-arm64/chromedriver'
 else:
-    chrome_driver_path = argv[1]
+    # On my Ubuntu ARM64 server.
+    # sudo apt install chromium-chromedriver
+    from shutil import which
+    chromedriver_path = which("chromedriver")
 service = Service(chrome_driver_path)
 
 # Selenium driver setup.
@@ -47,6 +51,7 @@ driver = webdriver.Chrome(service = service, options = chrome_options)
 # Flask setup.
 app = Flask(__name__)
 CORS(app)
+# spostare in __main__
 
 # Returns [{pole_name: pole_link}] if the request is successful, otherwise None.
 def fetch_poles_data() -> Optional[List[Dict[str, str]]]:

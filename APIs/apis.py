@@ -33,6 +33,7 @@ output, error = command.communicate()
 output = output.decode("utf-8").strip().lower()
 
 # Chrome driver path.
+chrome_driver_path = ""
 if "darwin" in output:
     # On my Mac.
 
@@ -44,7 +45,7 @@ elif "linux" in output:
     # sudo apt install chromium-chromedriver
 
     from shutil import which
-    chromedriver_path = which("chromedriver")
+    chrome_driver_path = which("chromedriver")
 
 # Chrome options.
 chrome_options = Options()

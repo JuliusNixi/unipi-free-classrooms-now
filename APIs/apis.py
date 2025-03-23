@@ -1,5 +1,5 @@
 # Flask things.
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 # CORS to allow cross-origin requests.
 from flask_cors import CORS
 
@@ -115,7 +115,7 @@ def escrape_page(url) -> List[Dict[str, Union[str, List[str]]]]:
     # List of classrooms' names as str.
     classrooms: List[str] = []
     for row in rows_first:
-        classroom = row.text.replace(" ", "").strip()
+        classroom = row.text.split("(")[0].strip()
         classrooms.append(classroom)
 
     # Getting second table's data.
@@ -136,7 +136,19 @@ def escrape_page(url) -> List[Dict[str, Union[str, List[str]]]]:
     list_of_schedules = []
     current_row_id = ""
     current_row_schedules = []
-    for schedule_a in all_schedules_a:
+    # Adding a None to the end to process the last row.
+    for schedule_a in list(all_schedules_a) + [None]:
+
+        if schedule_a is None:
+            # Last iteration.
+            info = {}
+            info[current_row_id] = current_row_schedules.copy()
+            list_of_schedules.append(info)
+
+            current_row_schedules.clear()
+
+            break
+
         schedule = schedule_a.text
 
         tr_parent = schedule_a.find_parent("tr")
@@ -198,13 +210,16 @@ def process_datas(infos, time = None) -> List[Dict[str, Union[str, List[str]]]]:
         for key in info:
             if key == "Classroom":
                 continue
+
             schedules = info[key]
             to_add = False
             if len(schedules) == 0:
                 # The classroom is free all day.
                 to_add = True
+
             for i in range(len(schedules)):
                 schedule = schedules[i]
+
                 matches = regex.findall(schedule)
                 if len(matches) != 2:
                     # DANGER
@@ -214,24 +229,58 @@ def process_datas(infos, time = None) -> List[Dict[str, Union[str, List[str]]]]:
                     print("It's matches are: ", matches, ".")
                     to_add = False
                     break
+
                 start_time = datetime.strptime(matches[0], "%H:%M")
                 end_time = datetime.strptime(matches[1], "%H:%M")
-                if start_time <= time <= end_time:
+
+                today = datetime.now()
+                start_time_specific_hour = datetime(
+                    year=today.year,
+                    month=today.month,
+                    day=today.day,
+                    hour=start_time.hour,
+                    minute=start_time.minute,
+                    second=0
+                )
+                end_time_specific_hour = datetime(
+                    year=today.year,
+                    month=today.month,
+                    day=today.day,
+                    hour=end_time.hour,
+                    minute=end_time.minute,
+                    second=0
+                )
+                
+                if start_time_specific_hour <= time <= end_time_specific_hour:
                     # The classroom is busy.
                     to_add = False
                     break
                 else:
                     to_add = True
+
             if to_add:
                 new_info = info.copy()
                 next_start_times = []
+                # Find the next start time.
                 for i in range(len(schedules)):
                     schedule = schedules[i]
+
                     matches = regex.findall(schedule)
                     start_time = datetime.strptime(matches[0], "%H:%M")
+                    today = datetime.now()
+                    start_time = datetime(
+                        year=today.year,
+                        month=today.month,
+                        day=today.day,
+                        hour=start_time.hour,
+                        minute=start_time.minute,
+                        second=0
+                    )
+
                     # Exclude the schedules that are already passed.
                     if time > start_time:
                         next_start_times.append(start_time)
+
                 if len(next_start_times) > 0:
                     next_start_time = min(next_start_times)
                     today = datetime.now()
@@ -244,11 +293,49 @@ def process_datas(infos, time = None) -> List[Dict[str, Union[str, List[str]]]]:
                         second=0
                     )
                     new_info["NextStartTime"] = today_specific_hour.strftime('%d-%m-%Y %H:%M')
+
                 infos_to_keep_with_next_start_time.append(new_info)
         
     return infos_to_keep_with_next_start_time
 
+# Checks if the given pole name is valid.
+# Returns the sanitized pole name if it's valid, otherwise an error response to be returned from the caller.
+def check_given_pole_validity(pole_name) -> Union[Response, str]:
 
+    if pole_name is None:
+        return jsonify({"message": "Pole name is required."})
+    
+    pole_name = pole_name.lower().strip()
+
+    poles = fetch_poles_data()
+    if poles is None:
+        return jsonify({"message": "Error in fetching poles data."})
+    
+    if pole_name not in [list(pole.keys())[0].lower() for pole in poles]:
+        return jsonify({"message": "Invalid pole name."})
+    
+    return pole_name
+
+# Returns the pole URL given the pole name.
+# If the pole name is not valid, returns an error response to be returned from the caller.
+def get_pole_url(pole_name) -> Union[Response, str]:
+
+    pole_name = check_given_pole_validity(pole_name)
+    if isinstance(pole_name, Response):
+        # pole_name is a Response (jsonify).
+        return pole_name
+
+    poles = fetch_poles_data()
+    if poles is None:
+        return jsonify({"message": "Error in fetching poles data."})
+    
+    pole_url = ""
+    for pole in poles:
+        if list(pole.keys())[0].lower() == pole_name:
+            pole_url = pole[list(pole.keys())[0]]
+            break
+    
+    return pole_url
 
 ################ APIs ################
 
@@ -261,32 +348,38 @@ def get_poles_data():
         return jsonify({"message": "Error in fetching poles data."})
     return jsonify({"poles_data": poles})
 
-@app.route('/api/free_classrooms_given_pole', methods = ['GET'])
-def get_free_classrooms_given_pole():
+@app.route('/api/all_rooms_given_pole', methods = ['GET'])
+# Returns all the rooms given the pole name.
+# {"Classroom": classroom_name, RESOURCE_ID_ROW_DYNAMIC: [schedule1, schedule2, ...]}
+def get_all_rooms_given_pole():
     pole_name = request.args.get('pole_name')
 
-    if pole_name is None:
-        return jsonify({"message": "Pole name is required."})
-    
-    pole_name = pole_name.lower()
+    pole_url = get_pole_url(pole_name)
+    if isinstance(pole_url, Response):
+        # pole_url is a Response (jsonify).
+        return pole_url
 
-    poles = fetch_poles_data()
-    if poles is None:
-        return jsonify({"message": "Error in fetching poles data."})
+    infos = escrape_page(pole_url)
+
+    return jsonify({"all_rooms": infos})
     
-    if pole_name not in [list(pole.keys())[0].lower() for pole in poles]:
-        return jsonify({"message": "Invalid pole name."})
+@app.route('/api/free_classrooms_given_pole', methods = ['GET'])
+# Returns all the free classrooms given the pole name.
+# It's like get_all_rooms_given_pole but with ONLY the classrooms that are free at the given time + the next event start time.
+# {"Classroom": classroom_name, RESOURCE_ID_ROW_DYNAMIC: [schedule1, schedule2, ...], "NextStartTime": next_start_time}
+# NextStartTime is optional (for example, absent if the classroom is free all day).
+def get_free_classrooms_given_pole():
+    pole_name = request.args.get('pole_name')
     
-    pole_url = ""
-    for pole in poles:
-        if list(pole.keys())[0].lower() == pole_name:
-            pole_url = pole[list(pole.keys())[0]]
-            break
+    pole_url = get_pole_url(pole_name)
+    if isinstance(pole_url, Response):
+        # pole_url is a Response (jsonify).
+        return pole_url
 
     infos = escrape_page(pole_url)
     infos_to_keep_with_next_start_time = process_datas(infos)
 
-    return jsonify(infos_to_keep_with_next_start_time)
+    return jsonify({"free_classrooms": infos_to_keep_with_next_start_time})
 
 # Main entry point of the application.
 if __name__ == '__main__':

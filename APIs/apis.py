@@ -32,7 +32,10 @@ if len(argv) <= 1:
     # On my Mac.
 
     # Chrome driver path.
-    chrome_driver_path = '/Users/juliusnixi/chromedriver-mac-arm64/chromedriver'
+    #chrome_driver_path = '/Users/juliusnixi/chromedriver-mac-arm64/chromedriver'
+
+    from shutil import which
+    chromedriver_path = which("chromedriver")
 
     # Chrome options.
     chrome_options = Options()

@@ -18,6 +18,9 @@ from threading import Thread
 from time import sleep
 from sys import exit
 
+# Settings things.
+from sys import argv
+
 # When things get serious, types come in. To keep the code clean and readable.
 from typing import List, Dict, Optional, Union
 
@@ -31,7 +34,11 @@ chrome_options.add_argument("--disable-gpu")
 chrome_options.add_argument("--no-sandbox")
 
 # Chrome driver path.
-chrome_driver_path = '/Users/juliusnixi/chromedriver-mac-arm64/chromedriver'
+chrome_driver_path = ""
+if len(argv) != 2:
+    chrome_driver_path = '/Users/juliusnixi/chromedriver-mac-arm64/chromedriver'
+else:
+    chrome_driver_path = argv[1]
 service = Service(chrome_driver_path)
 
 # Selenium driver setup.

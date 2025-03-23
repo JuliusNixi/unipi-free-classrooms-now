@@ -19,7 +19,7 @@ from time import sleep
 from sys import exit
 
 # Settings things.
-from sys import argv
+from subprocess import Popen, PIPE
 
 # When things get serious, types come in. To keep the code clean and readable.
 from typing import List, Dict, Optional, Union
@@ -27,47 +27,40 @@ from typing import List, Dict, Optional, Union
 # To manipulate times objects.
 from datetime import datetime
 
-driver = None
-if len(argv) <= 1:
+# spostare in __main__
+command = Popen("uname", stdout = PIPE, shell = True)
+output, error = command.communicate()
+output = output.decode("utf-8").strip().lower()
+
+# Chrome driver path.
+if "darwin" in output:
     # On my Mac.
 
-    # Chrome driver path.
-    #chrome_driver_path = '/Users/juliusnixi/chromedriver-mac-arm64/chromedriver'
+    chrome_driver_path = '/Users/juliusnixi/chromedriver-mac-arm64/chromedriver'
 
-    from shutil import which
-    chromedriver_path = which("chromedriver")
-
-    # Chrome options.
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-
-    service = Service(chrome_driver_path)
-
-    # Selenium driver setup.
-    driver = webdriver.Chrome(service = service, options = chrome_options)
-else:
+elif "linux" in output:
     # On my Ubuntu ARM64 server.
 
     # sudo apt install chromium-chromedriver
 
-    options = webdriver.ChromeOptions()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-gpu")
-
     from shutil import which
     chromedriver_path = which("chromedriver")
 
-    service = webdriver.ChromeService(executable_path = chromedriver_path)
+# Chrome options.
+chrome_options = Options()
+chrome_options.add_argument("--headless")
+chrome_options.add_argument("--disable-gpu")
+chrome_options.add_argument("--no-sandbox")
 
-    driver = webdriver.Chrome(options = options, service = service)
+service = Service(chrome_driver_path)
+
+# Selenium driver setup.
+driver = webdriver.Chrome(service = service, options = chrome_options)
 
 # Flask setup.
 app = Flask(__name__)
 CORS(app)
-# spostare in __main__
+
 
 # Returns [{pole_name: pole_link}] if the request is successful, otherwise None.
 def fetch_poles_data() -> Optional[List[Dict[str, str]]]:

@@ -278,7 +278,7 @@ def process_datas(infos, time = None) -> List[Dict[str, Union[str, List[str]]]]:
                     )
 
                     # Exclude the schedules that are already passed.
-                    if time > start_time:
+                    if time < start_time:
                         next_start_times.append(start_time)
 
                 if len(next_start_times) > 0:

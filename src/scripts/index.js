@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:8080/api/"
+const API_URL = "http://193.123.60.3:54321/api/"
 
 function getPolesData() {
     const POLES_DATA_URL = API_URL + "poles_data"

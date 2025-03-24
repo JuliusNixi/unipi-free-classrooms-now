@@ -27,42 +27,6 @@ from typing import List, Dict, Optional, Union
 # To manipulate times objects.
 from datetime import datetime
 
-# spostare in __main__
-command = Popen("uname", stdout = PIPE, shell = True)
-output, error = command.communicate()
-output = output.decode("utf-8").strip().lower()
-
-# Chrome driver path.
-chrome_driver_path = ""
-if "darwin" in output:
-    # On my Mac.
-
-    chrome_driver_path = '/Users/juliusnixi/chromedriver-mac-arm64/chromedriver'
-
-elif "linux" in output:
-    # On my Ubuntu ARM64 server.
-
-    # sudo apt install chromium-chromedriver
-
-    from shutil import which
-    chrome_driver_path = which("chromedriver")
-
-# Chrome options.
-chrome_options = Options()
-chrome_options.add_argument("--headless")
-chrome_options.add_argument("--disable-gpu")
-chrome_options.add_argument("--no-sandbox")
-
-service = Service(chrome_driver_path)
-
-# Selenium driver setup.
-driver = webdriver.Chrome(service = service, options = chrome_options)
-
-# Flask setup.
-app = Flask(__name__)
-CORS(app)
-
-
 # Returns [{pole_name: pole_link}] if the request is successful, otherwise None.
 def fetch_poles_data() -> Optional[List[Dict[str, str]]]:
     URL = "https://aule.webhost1.unipi.it/poli-didattici/"
@@ -93,9 +57,12 @@ def fetch_poles_data() -> Optional[List[Dict[str, str]]]:
 
 # {pole_link: page_source}.
 schedule_pages: Dict[str, str] = {}
+driver = None
 # To run in a dedicated thread.
 # Periodically fetches all the schedules pages, to avoid doing it when an API request is made.
 def get_all_schedules_pages_thread() -> None:
+
+    global schedule_pages, driver
 
     poles = fetch_poles_data()
     if poles is None:
@@ -418,6 +385,10 @@ def get_pole_url(pole_name) -> Union[Response, str]:
 
 ###########################################     APIs        ###########################################
 
+# Flask setup.
+app = Flask(__name__)
+CORS(app)
+
 # Used to list all the poles in the client.
 @app.route('/api/poles_data', methods = ['GET'])
 # Returns {"poles_data": [{pole_name: pole_link}]}.
@@ -474,8 +445,39 @@ def get_free_classrooms_given_pole():
 
     return jsonify({"free_classrooms": infos_to_keep_with_next_start_time})
 
-# Main entry point of the application.
-if __name__ == '__main__':
+def main():
+
+    global driver, schedule_pages
+
+    command = Popen("uname", stdout = PIPE, shell = True)
+    output, error = command.communicate()
+    output = output.decode("utf-8").strip().lower()
+
+    # Chrome driver path.
+    chrome_driver_path = ""
+    if "darwin" in output:
+        # On my Mac.
+
+        chrome_driver_path = '/Users/juliusnixi/chromedriver-mac-arm64/chromedriver'
+
+    elif "linux" in output:
+        # On my Ubuntu ARM64 server.
+
+        # sudo apt install chromium-chromedriver
+
+        from shutil import which
+        chrome_driver_path = which("chromedriver")
+
+    # Chrome options.
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+
+    service = Service(chrome_driver_path)
+
+    # Selenium driver setup.
+    driver = webdriver.Chrome(service = service, options = chrome_options)
 
     # Before serving the APIs, we need to fetch all the schedules pages with a dedicated thread.
     thread = Thread(target = get_all_schedules_pages_thread)
@@ -488,4 +490,14 @@ if __name__ == '__main__':
         sleep(1)
     print("Schedules pages fetched.")
 
-    app.run(debug = False, port = 8080, use_reloader = False)
+# Main entry point of the application.
+if __name__ == '__main__':
+
+    main()
+
+    # In development, use Flask:
+    app.run(debug = True, port = 8080, use_reloader = False)
+
+    # In production, use Gunicorn:
+    # pip install gunicorn
+    # python3 -m gunicorn --bind 0.0.0.0:54321 wsgi:app

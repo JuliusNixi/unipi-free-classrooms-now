@@ -84,8 +84,8 @@ def get_all_schedules_pages_thread() -> None:
                 print(error_msg)
                 # To kill all the threads.
                 exit(1)
-            # JS is loading, wait 2 seconds.
-            sleep(2)
+            # JS is loading, wait 1 seconds.
+            sleep(1)
             page_source = driver.page_source
             schedule_pages[url] = str(page_source)
 
@@ -483,8 +483,8 @@ def main():
     thread = Thread(target = get_all_schedules_pages_thread)
     thread.start()
     # Wait for it to collect all the schedules pages.
-    # (16 pages * 2 seconds to load JS) + 8 seconds to be sure.
-    total_time = 32 + 8
+    # (16 pages * 1 seconds to load JS).
+    total_time = 16
     for i in range(total_time):
         print(f"Waiting for schedules pages to be fetched... {total_time - i} seconds left.")
         sleep(1)

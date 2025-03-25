@@ -1,4 +1,4 @@
-const API_URL = "http://193.123.60.3:54321/api/"
+const API_URL = "https://vps.giulionisi.me:54321/api/"
 
 // Return all the rooms given a pole name.
 async function getAllRooms(pole_name) {

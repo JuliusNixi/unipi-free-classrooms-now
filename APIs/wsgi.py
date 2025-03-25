@@ -7,4 +7,5 @@ if __name__ == "__main__":
 
     app.run()
 else:
+    # Gunicon takes this as the entry point and automatically runs the app.
     main()

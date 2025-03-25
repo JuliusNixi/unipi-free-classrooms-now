@@ -1,4 +1,4 @@
-const API_URL = "http://193.123.60.3:54321/api/"
+const API_URL = "https://vps.giulionisi.me:54321/api/"
 
 function getPolesData() {
     const POLES_DATA_URL = API_URL + "poles_data"

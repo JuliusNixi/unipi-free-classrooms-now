@@ -500,4 +500,6 @@ if __name__ == '__main__':
 
     # In production, use Gunicorn:
     # pip install gunicorn
-    # python3 -m gunicorn --bind 0.0.0.0:54321 wsgi:app
+    # Apache proxy forwards the requests from 54321 port to Gunicorn on 8000 port.
+    # python3 -m gunicorn --bind 127.0.0.1:8000 wsgi:app
+    # HTTPS required on GitHub Pages.

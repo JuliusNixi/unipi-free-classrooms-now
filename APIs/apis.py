@@ -23,6 +23,7 @@ from flask_cors import CORS
 from datetime import datetime
 
 from time import sleep
+from sys import argv
 
 # Returns [{pole_name: pole_link}] if the request is successful, otherwise None.
 def fetch_poles_data() -> Optional[List[Dict[str, str]]]:
@@ -61,7 +62,12 @@ def selenium_get_schedule_page(pole_link) -> Optional[str]:
     chrome_options.add_argument("--no-sandbox")
 
     try:
-        service = Service(ChromeDriverManager().install())
+        service = ""
+        if argv[1]:
+            # Passing the path to the chromedriver to use it on my linux arm server.
+            service = Service(argv[1])
+        else:
+            service = Service(ChromeDriverManager().install())
 
         # Selenium driver setup.
         driver = webdriver.Chrome(service = service, options = chrome_options)
@@ -433,7 +439,12 @@ if __name__ == '__main__':
 
     # In production, use Gunicorn:
     # pip install gunicorn
-    # Apache proxy forwards the requests from 54321 port to Gunicorn on 8000 port.
     # python3 -m gunicorn --bind 127.0.0.1:8000 wsgi:app
+
+    # Apache proxy forwards the requests from 54321 port to Gunicorn on 8000 port.
+
     # HTTPS required on GitHub Pages.
+
     # sudo apt install chromium-chromedriver
+
+    # which chromedriver

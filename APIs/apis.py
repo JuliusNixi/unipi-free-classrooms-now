@@ -23,7 +23,8 @@ from flask_cors import CORS
 from datetime import datetime
 
 from time import sleep
-from sys import argv
+from platform import platform
+from os import environ
 
 # Returns [{pole_name: pole_link}] if the request is successful, otherwise None.
 def fetch_poles_data() -> Optional[List[Dict[str, str]]]:
@@ -63,9 +64,9 @@ def selenium_get_schedule_page(pole_link) -> Optional[str]:
 
     try:
         service = ""
-        if argv[1]:
+        if "linux" in platform:
             # Passing the path to the chromedriver to use it on my linux arm server.
-            service = Service(argv[1])
+            service = Service(environ.get("CHROMEDRIVER_PATH"))
         else:
             service = Service(ChromeDriverManager().install())
 

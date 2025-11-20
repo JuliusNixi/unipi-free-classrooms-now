@@ -1,7 +1,7 @@
 const API_URL = "https://vps.giulionisi.me:54321/api/"
 
 // Return all the rooms given a pole name.
-async function getAllRooms(pole_name) {
+async function getAllRoomsGivenPole(pole_name) {
     const ALL_ROOMS_URL = API_URL + "all_rooms_given_pole" + "?pole_name=" + pole_name
 
     let all_rooms = []
@@ -14,7 +14,7 @@ async function getAllRooms(pole_name) {
                 if (all_rooms_data_list === undefined) {
                     console.error('Error in getting data inside the APIs.');
                     let p_error = document.getElementsByTagName("p")[0]
-                    p_error.textContent = "Errore nel reperire i dati all'interno delle APIs."
+                    p_error.textContent = "Error in getting data inside the APIs."
                     return
                 }
 
@@ -25,16 +25,16 @@ async function getAllRooms(pole_name) {
     .catch(error => {
         console.error('Error in fetching APIs:', error);
         let p_error = document.getElementsByTagName("p")[0]
-        p_error.textContent = "Errore nel contattare le APIs."
+        p_error.textContent = "Error in fetching APIs."
     })
 
     return all_rooms
 
 }
 
-function getFreeClassrooms(all_rooms, pole_name) {
+function getFreeClassroomsNowGivenPole(all_rooms, pole_name) {
 
-    const FREE_CLASSROOMS_URL = API_URL + "free_classrooms_given_pole" + "?pole_name=" + pole_name
+    const FREE_CLASSROOMS_URL = API_URL + "free_classrooms_now_given_pole" + "?pole_name=" + pole_name
 
     fetch(FREE_CLASSROOMS_URL)
         .then(response => response.json())
@@ -44,7 +44,7 @@ function getFreeClassrooms(all_rooms, pole_name) {
                 if (free_classrooms_data_list === undefined) {
                     console.error('Error in getting data inside the APIs.');
                     let p_error = document.getElementsByTagName("p")[0]
-                    p_error.textContent = "Errore nel reperire i dati all'interno delle APIs."
+                    p_error.textContent = "Error in getting data inside the APIs."
                     return
                 }
 
@@ -59,10 +59,9 @@ function getFreeClassrooms(all_rooms, pole_name) {
                 // Updating the list with the free rooms.
                 free_classrooms_data_list.forEach(free_classroom => {
                     for (let i = 0; i < lis.length; i++) {
-                        if (lis[i].textContent.includes(free_classroom["Classroom"])) {
+                        if (lis[i].textContent.includes(Object.keys(free_classroom))[0]) {
                             lis[i].textContent = lis[i].textContent.replace(" - ❌", "") + " - ✅"
-                            if (free_classroom["NextStartTime"] !== undefined) {
-                                lis[i].textContent += " Fino alle: " + free_classroom["NextStartTime"].split(" ")[1] + "."
+                            lis[i].textContent += Object.keys(free_classroom))[1] + "."
                             }
                             break
                         }
@@ -78,7 +77,7 @@ function getFreeClassrooms(all_rooms, pole_name) {
     .catch(error => {
         console.error('Error in fetching APIs:', error);
         let p_error = document.getElementsByTagName("p")[0]
-        p_error.textContent = "Errore nel contattare le APIs."
+        p_error.textContent = "Error in fetching APIss."
     })
 
 }
@@ -87,15 +86,15 @@ document.addEventListener("DOMContentLoaded", async function() {
 
     const queryString = window.location.search;
     const urlParams = new URLSearchParams(queryString);
-    const pole_name = urlParams.get('polo');
+    const pole_name = urlParams.get('pole');
     if (pole_name === null) {
         console.error('Error in getting pole name param from the user url request.');
         let p_error = document.getElementsByTagName("p")[0]
-        p_error.textContent = "Errore nel reperire il nome del polo dalla tua richiesta."
+        p_error.textContent = "Error in getting pole name param from the user url request."
         return
     }
 
-    let all_rooms = await getAllRooms(pole_name)
-    getFreeClassrooms(all_rooms, pole_name)
+    let all_rooms = await getAllRoomsGivenPole(pole_name)
+    getFreeClassroomsNowGivenPole(all_rooms, pole_name)
 
 });

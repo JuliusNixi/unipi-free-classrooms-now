@@ -62,7 +62,6 @@ function getFreeClassroomsNowGivenPole(all_rooms, pole_name) {
                         if (lis[i].textContent.includes(Object.keys(free_classroom)[0])) {
                             lis[i].textContent = lis[i].textContent.replace(" - ❌", "") + " - ✅"
                             lis[i].textContent += Object.keys(free_classroom)[1] + "."
-                            }
                             break
                         }
                     }

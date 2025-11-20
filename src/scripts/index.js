@@ -12,7 +12,7 @@ function getPolesData() {
                 if (poles_data_list === undefined) {
                     console.error('Error in getting data inside the APIs.');
                     let p_error = document.getElementsByTagName("p")[0]
-                    p_error.textContent = "Errore nel reperire i dati all'interno delle APIs."
+                    p_error.textContent = "Error in getting data inside the APIs."
                     return
                 }
 
@@ -34,7 +34,7 @@ function getPolesData() {
     .catch(error => {
         console.error('Error in fetching APIs:', error);
         let p_error = document.getElementsByTagName("p")[0]
-        p_error.textContent = "Errore nel contattare le APIs."
+        p_error.textContent = "Error in reaching APIs."
     })
 }
 

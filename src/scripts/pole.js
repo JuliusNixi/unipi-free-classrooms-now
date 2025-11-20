@@ -19,7 +19,7 @@ async function getAllRoomsGivenPole(pole_name) {
                 }
 
                 all_rooms_data_list.forEach(room => {
-                    all_rooms.push(room["Classroom"])
+                    all_rooms.push(room)
                 });
             })
     .catch(error => {

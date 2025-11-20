@@ -64,7 +64,7 @@ def selenium_get_schedule_page(pole_link) -> Optional[str]:
 
     try:
         service = ""
-        if "linux" in platform:
+        if "linux" in str(platform()).lower():
             # Passing the path to the chromedriver to use it on my linux arm server.
             service = Service(environ.get("CHROMEDRIVER_PATH"))
         else:

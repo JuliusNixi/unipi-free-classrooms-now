@@ -59,9 +59,9 @@ function getFreeClassroomsNowGivenPole(all_rooms, pole_name) {
                 // Updating the list with the free rooms.
                 free_classrooms_data_list.forEach(free_classroom => {
                     for (let i = 0; i < lis.length; i++) {
-                        if (lis[i].textContent.includes(Object.keys(free_classroom))[0]) {
+                        if (lis[i].textContent.includes(Object.keys(free_classroom)[0])) {
                             lis[i].textContent = lis[i].textContent.replace(" - ❌", "") + " - ✅"
-                            lis[i].textContent += Object.keys(free_classroom))[1] + "."
+                            lis[i].textContent += Object.keys(free_classroom)[1] + "."
                             }
                             break
                         }

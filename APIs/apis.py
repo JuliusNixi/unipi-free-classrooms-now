@@ -419,8 +419,14 @@ def free_classrooms_now_given_pole():
 
     return jsonify({"free_classrooms": free_classrooms}) 
 
+def main():
+    print("Starting...")
+
 # Main entry point of the application.
 if __name__ == '__main__':
+
+    # Placeholder for an initialization.
+    main()
 
     # In development, use Flask:
     app.run(debug = True, port = 8080, use_reloader = False)
@@ -430,3 +436,4 @@ if __name__ == '__main__':
     # Apache proxy forwards the requests from 54321 port to Gunicorn on 8000 port.
     # python3 -m gunicorn --bind 127.0.0.1:8000 wsgi:app
     # HTTPS required on GitHub Pages.
+    # sudo apt install chromium-chromedriver

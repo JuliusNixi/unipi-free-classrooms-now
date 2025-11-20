@@ -2,7 +2,7 @@ const API_URL = "https://vps.giulionisi.me:54321/api/"
 
 // Return all the rooms given a pole name.
 async function getAllRoomsGivenPole(pole_name) {
-    const ALL_ROOMS_URL = API_URL + "all_rooms_given_pole" + "?pole_name=" + pole_name
+    const ALL_ROOMS_URL = API_URL + "get_all_rooms_given_pole" + "?pole_name=" + pole_name
 
     let all_rooms = []
     

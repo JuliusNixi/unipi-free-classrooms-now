@@ -305,7 +305,7 @@ def get_poles_data():
     
     return jsonify({"poles_data": poles})
 
-@app.route('/api/all_rooms_given_pole', methods = ['GET'])
+@app.route('/api/get_all_rooms_given_pole', methods = ['GET'])
 # Returns all the rooms given the pole name.
 # {
 #   "all_rooms": [

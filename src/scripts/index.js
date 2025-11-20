@@ -34,7 +34,7 @@ function getPolesData() {
     .catch(error => {
         console.error('Error in fetching APIs:', error);
         let p_error = document.getElementsByTagName("p")[0]
-        p_error.textContent = "Error in reaching APIs."
+        p_error.textContent = "Error in fetching APIs."
     })
 }
 

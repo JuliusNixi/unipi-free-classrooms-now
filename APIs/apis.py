@@ -1,31 +1,28 @@
-# Flask things.
-from flask import Flask, jsonify, request, Response
-# CORS to allow cross-origin requests. To allow other domains to access the APIs.
-from flask_cors import CORS
-
 # Escraping things.
-from bs4 import BeautifulSoup
 from requests import get
-from re import compile, IGNORECASE
+from bs4 import BeautifulSoup
 # The schedule page is dynamic, it expects JS, otherwise it doesn't load.
 # We need to use Selenium to scrape it.
 from selenium import webdriver
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-
-# Multithreading things.
-from threading import Thread
-from time import sleep
-from sys import exit
-
-# Settings things.
-from subprocess import Popen, PIPE
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 # When things get serious, types come in. To keep the code clean and readable.
 from typing import List, Dict, Optional, Union
 
+# Flask things.
+from flask import Flask, jsonify, request
+# CORS to allow cross-origin requests. To allow other domains to access the APIs.
+from flask_cors import CORS
+
 # To manipulate times objects.
 from datetime import datetime
+
+from time import sleep
 
 # Returns [{pole_name: pole_link}] if the request is successful, otherwise None.
 def fetch_poles_data() -> Optional[List[Dict[str, str]]]:
@@ -55,53 +52,40 @@ def fetch_poles_data() -> Optional[List[Dict[str, str]]]:
 
     return poles
 
-# {pole_link: page_source}.
-schedule_pages: Dict[str, str] = {}
-driver = None
-# To run in a dedicated thread.
-# Periodically fetches all the schedules pages, to avoid doing it when an API request is made.
-def get_all_schedules_pages_thread() -> None:
+# From the pole link get with selenium the schedule page source content as str.
+def selenium_get_schedule_page(pole_link) -> Optional[str]:
+    # Chrome options.
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
 
-    global schedule_pages, driver
+    try:
+        service = Service(ChromeDriverManager().install())
 
-    poles = fetch_poles_data()
-    if poles is None:
-        error_msg = "Error in fetching poles data by the dedicated thread."
-        print(error_msg)
-        # To kill all the threads.
-        exit(1)
-    
-    urls = []
-    for pole in poles:
-        urls.append(pole[list(pole.keys())[0]])
-    
-    while True:
-        for url in urls:
-            try:
-                driver.get(url)
-            except:
-                error_msg = f"Error in fetching poles data of the page (by the dedicated thread): {url}."
-                print(error_msg)
-                # To kill all the threads.
-                exit(1)
-            # JS is loading, wait 1 seconds.
-            sleep(1)
-            page_source = driver.page_source
-            schedule_pages[url] = str(page_source)
+        # Selenium driver setup.
+        driver = webdriver.Chrome(service = service, options = chrome_options)
 
-        # To avoid overloading the servers, sleep 15 minutes.
-        sleep(60 * 15)
+        driver.get(pole_link)
+
+        # Not beautiful but I cannot make it works in async way due to JS execution used to fill the page.
+        sleep(3)
+
+        page_source = str(driver.page_source)
+
+        return page_source
+    except:
+        return None
 
 # Returns an "infos" list, with the following structure:
 # [
-# {"Classroom": classroom_name, RESOURCE_ID_ROW_DYNAMIC: [schedule1, schedule2, ...]},
-#  ...
+#   {"Classroom": "classroom_name", "RESOURCE_ID_ROW_DYNAMIC": ["schedule1", "schedule2", ...]},
+#   ...
 # ]
-# Where schedule is all the plain text in the <a> tag as str.
-# url is the pole's URL.
-def escrape_page(url) -> List[Dict[str, Union[str, List[str]]]]:
+# Where scheduleN is all the plain text in the <a> tag as str with each <br> row delimited by an '|'.
+def escrape_schedule_page(schedule_page_source) -> Optional[List[Dict[str, Union[str, List[str]]]]]:
 
-    soup = BeautifulSoup(schedule_pages[url], 'html.parser')
+    soup = BeautifulSoup(schedule_page_source, 'html.parser')
 
     # The page is divided in two parts (tables).
     # The first one is a table with as rows the classrooms, each table row has a classroom's name.
@@ -113,10 +97,10 @@ def escrape_page(url) -> List[Dict[str, Union[str, List[str]]]]:
     # ATTENTION: BE CAREFUL, NOT ALL POLES PAGE HAVE THE SAME STRUCTURE, SO BE AS GENERIC AS POSSIBLE.
 
     # [
-    # {"Classroom": classroom_name, RESOURCE_ID_ROW_DYNAMIC: [schedule1, schedule2, ...]},
-    #  ...
+    #   {"Classroom": "classroom_name", "RESOURCE_ID_ROW_DYNAMIC": ["schedule1", "schedule2", ...]},
+    #   ...
     # ]
-    # Where schedule is all the plain text in the <a> tag as str.
+    # Where scheduleN is all the plain text in the <a> tag as str with each <br> row delimited by an '|'.
     infos: List[Dict[str, Union[str, List[str]]]] = []
 
     # Iterating over the first table to get the classrooms.
@@ -133,14 +117,25 @@ def escrape_page(url) -> List[Dict[str, Union[str, List[str]]]]:
     # Getting second table's data.
     second_table = soup.find_all("td", class_=["fc-time-area fc-widget-content"])[0]
     all_schedules_a = second_table.find_all("a")
+    parsed_a = ""
+    all_parsed_a = []
+    for a in all_schedules_a:
+        spans = a.find_all("span")
+        for s in spans:
+            brs = s.find_all("br")
+            if len(brs) > 0:
+                content = s.decode_contents()
+                lines = [line.strip().replace("\t", "") for line in content.split("<br/>") if line.strip()]
+                parsed_a += "|".join(lines)
+            else:
+                parsed_a += s.text + "|"
+        all_parsed_a.append(parsed_a)
+        parsed_a = ""
     rows_second = second_table.find_all("table")[0].find_all("tr")
 
     # DANGER IF THE TABLES ARE NOT IN SYNC.
     if len(rows_first) != len(rows_second):
-        error_msg = "The tables are not in sync."
-        print(error_msg)
-        # To kill all the threads.
-        exit(1)
+        return None
 
     # Getting rows' ids, used to join the classrooms with the schedules.
     # data-resource-id is an attribute of the <tr> tag.
@@ -208,180 +203,90 @@ def escrape_page(url) -> List[Dict[str, Union[str, List[str]]]]:
 
         infos.append(info)
 
+    # Replacing unparsed a datas with parsed one.
+    unparsed_tmp = [e.replace("|", "") for e in all_parsed_a]
+    for classroom in infos:
+        rsid = list(classroom.keys())[1]
+        schedules = classroom[rsid]
+        for counter in range(len(schedules)):
+            cu = 0
+            for u in unparsed_tmp:
+                if schedules[counter].startswith(u):
+                    schedules[counter] = all_parsed_a[cu]
+                    break
+                cu += 1
+
     return infos
 
-# INFOS ARG STRCTURE (TO BE GOT FROM escrape_page):
+# INFOS ARG STRCTURE (TO BE GOT FROM escrape_schedule_page):
 # [
-# {"Classroom": classroom_name, RESOURCE_ID_ROW_DYNAMIC: [schedule1, schedule2, ...]},
-#  ...
+#   {"Classroom": "classroom_name", "RESOURCE_ID_ROW_DYNAMIC": ["schedule1", "schedule2", ...]},
+#   ...
 # ]
-# Where schedule is all the plain text in the <a> tag as str.
-# time is the time to check if the classrooms are free, by default it's the current time.
-# It has been made generic for future uses.
-# RETURNS AN INFOS COPY WITH THE CLASSROOMS THAT ARE FREE AT THE GIVEN TIME + THE NEXT EVENT START TIME.
-def process_datas(infos, time = None) -> List[Dict[str, Union[str, List[str]]]]:
+# Where scheduleN is all the plain text in the <a> tag as str with each <br> row delimited by an '|'.
+# Returns:
+# [
+#   {"classroom_name": "next_schedule_start_hour"},
+#   ...
+# ]
+def get_free_classrooms_now(infos) -> List[Dict[str, str]]:
 
-    if time is None:
-        time = datetime.now()
+    # Now.
+    time = datetime.now()
 
-    if datetime.now().day != time.day or datetime.now().month != time.month or datetime.now().year != time.year:
-        # Exception raised since it's probably depends from this project's development mistake.
-        error_msg = "The time must be in the today's day."
-        print(error_msg)
-        raise Exception(error_msg)
+    year = time.year
+    month = time.month
+    day = time.day
+    minute = time.minute
+    hour = time.hour
 
-    # Search all times in HH:MM format.
-    # To match start and end times of each schedule.
-    pattern = r'(?:[01]\d|2[0-3]):[0-5]\d'
-    regex = compile(pattern, IGNORECASE)
+    frees = []
 
-    infos_to_keep_with_next_start_time = []
-    for info in infos:
-        for key in info:
-            # Skipping the classroom name.
-            if key == "Classroom":
-                continue
+    for classroom in infos:
+        schedules = classroom[list(classroom.keys())[1]]
 
-            # Key is the row's dynamic id.
-            schedules = info[key]
-            # to_add is a flag to check if the classroom is free at the given time and needs to be added to the final list.
-            to_add = False
-            if len(schedules) == 0:
-                # The classroom is free all day.
-                to_add = True
+        # Detecting free classrooms.
+        free = True
+        for schedule in schedules:
+            timestartend = schedule.split("|")[0]
 
-            # Checking if the classroom is free at the given time, by processing the schedules.
-            for i in range(len(schedules)):
-                schedule = schedules[i]
+            timestart = datetime.strptime(timestartend.split("-")[0].strip(), "%H:%M")
+            timeend = datetime.strptime(timestartend.split("-")[1].strip(), "%H:%M")
 
-                matches = regex.findall(schedule)
-                if len(matches) != 2:
-                    # DANGER:
-                    # The schedule is not in the correct format.
-                    # More than 2 times (start time / end time) found.
-                    # To be sure, I DO NOT INCLUDE THIS Classroom.
-                    print(f"Skipping ABNORMAL schedule: {schedule}.")
-                    print("It's matches are: ", matches, ".")
-                    to_add = False
+            timestart = datetime(year=year, month=month, day=day, hour=timestart.hour, minute=timestart.minute)
+            timeend = datetime(year=year, month=month, day=day, hour=timeend.hour, minute=timeend.minute)
+
+            if timestart <= time <= timeend:
+                free = False
+                break
+
+        # Detecting next schedule start time.
+        if free:
+            timesstarts = []
+            for schedule in schedules:
+                timestartend = schedule.split("|")[0]
+
+                timestart = datetime.strptime(timestartend.split("-")[0].strip(), "%H:%M")
+                timestart = datetime(year=year, month=month, day=day, hour=timestart.hour, minute=timestart.minute)
+
+                timesstarts.append(timestart)
+
+            sorted_times = sorted(timesstarts)
+
+            nextstart = ""
+            for timec in sorted_times:
+                if time <= timec:
+                    nextstart = timec
                     break
 
-                start_time = datetime.strptime(matches[0], "%H:%M")
-                end_time = datetime.strptime(matches[1], "%H:%M")
+            if nextstart == "":
+                nextstart = None
+            else:
+                nextstart = nextstart.strftime("%H:%M")
 
-                today = datetime.now()
-                start_time_specific_hour = datetime(
-                    year=today.year,
-                    month=today.month,
-                    day=today.day,
-                    hour=start_time.hour,
-                    minute=start_time.minute,
-                    second=0
-                )
-                end_time_specific_hour = datetime(
-                    year=today.year,
-                    month=today.month,
-                    day=today.day,
-                    hour=end_time.hour,
-                    minute=end_time.minute,
-                    second=0
-                )
-                
-                if start_time_specific_hour <= time <= end_time_specific_hour:
-                    # The classroom is busy.
-                    to_add = False
-                    break
-                else:
-                    to_add = True
-                    # Assuming that the classroom is free now, but it still could be busy, we need to check the other schedules.
+            frees.append({classroom["Classroom"]: nextstart})
 
-            if to_add:
-                new_info = info.copy()
-
-                next_start_times = []
-                # Find the next start time.
-                for i in range(len(schedules)):
-                    schedule = schedules[i]
-
-                    matches = regex.findall(schedule)
-
-                    start_time = datetime.strptime(matches[0], "%H:%M")
-
-                    today = datetime.now()
-                    start_time = datetime(
-                        year=today.year,
-                        month=today.month,
-                        day=today.day,
-                        hour=start_time.hour,
-                        minute=start_time.minute,
-                        second=0
-                    )
-
-                    if time < start_time:
-                        next_start_times.append(start_time)
-                    else:
-                        # Exclude the schedules that are already passed.
-                        pass
-
-                # There are next start times.
-                if len(next_start_times) > 0:
-
-                    # Getting the next start time (the minimum one).
-                    next_start_time = min(next_start_times)
-
-                    today = datetime.now()
-                    today_specific_hour = datetime(
-                        year=today.year,
-                        month=today.month,
-                        day=today.day,
-                        hour=next_start_time.hour,
-                        minute=next_start_time.minute,
-                        second=0
-                    )
-
-                    new_info["NextStartTime"] = today_specific_hour.strftime('%d-%m-%Y %H:%M')
-
-                infos_to_keep_with_next_start_time.append(new_info)
-        
-    return infos_to_keep_with_next_start_time
-
-# Checks if the given pole name is valid.
-# Returns the sanitized pole name if it's valid, otherwise an error response to be returned from the caller.
-def check_given_pole_validity(pole_name) -> Union[Response, str]:
-
-    if pole_name is None:
-        return jsonify({"message": "Pole name is required."})
-    
-    pole_name = pole_name.lower().strip()
-
-    poles = fetch_poles_data()
-    if poles is None:
-        return jsonify({"message": "Error in fetching poles data."})
-    
-    if pole_name not in [list(pole.keys())[0].lower() for pole in poles]:
-        return jsonify({"message": "Invalid pole name."})
-    
-    return pole_name
-
-# Returns the pole URL given the pole name.
-# If the pole name is not valid, returns an error response to be returned from the caller.
-def get_pole_url(pole_name) -> Union[Response, str]:
-
-    pole_name = check_given_pole_validity(pole_name)
-    if isinstance(pole_name, Response):
-        # pole_name is a Response (jsonify).
-        return pole_name
-
-    poles = fetch_poles_data()
-    if poles is None:
-        return jsonify({"message": "Error in fetching poles data."})
-    
-    pole_url = ""
-    for pole in poles:
-        if list(pole.keys())[0].lower() == pole_name:
-            pole_url = pole[list(pole.keys())[0]]
-            break
-    
-    return pole_url
+    return frees
 
 ###########################################     APIs        ###########################################
 
@@ -391,7 +296,7 @@ CORS(app)
 
 # Used to list all the poles in the client.
 @app.route('/api/poles_data', methods = ['GET'])
-# Returns {"poles_data": [{pole_name: pole_link}]}.
+# Returns {"poles_data": [{"pole_name": "pole_link"}]}.
 def get_poles_data():
 
     poles = fetch_poles_data()
@@ -404,96 +309,118 @@ def get_poles_data():
 # Returns all the rooms given the pole name.
 # {
 #   "all_rooms": [
-#       {"Classroom": classroom_name, RESOURCE_ID_ROW_DYNAMIC: [schedule1, schedule2, ...]},
+#       "classroom_name1",
+#       "classroom_name2"
 #       ...
 #   ]
 # }
-# Where schedule is all the plain text in the <a> tag as str.
 def get_all_rooms_given_pole():
     pole_name = request.args.get('pole_name')
 
-    pole_url = get_pole_url(pole_name)
-    if isinstance(pole_url, Response):
-        # pole_url is a Response (jsonify).
-        return pole_url
+    pole_link = ""
+    poles = fetch_poles_data()
+    if poles is None:
+        return jsonify({"message": "Error in fetching poles data."})
+    for pole in poles:
+        if pole_name.lower() in list(pole.keys())[0].lower():
+            pole_link = pole[list(pole.keys())[0]]
 
-    infos = escrape_page(pole_url)
+    if pole_link == "":
+        return jsonify({"message": "Invalid pole."})
 
-    return jsonify({"all_rooms": infos})
-    
-@app.route('/api/free_classrooms_given_pole', methods = ['GET'])
-# Returns all the free classrooms given the pole name.
-# It's like get_all_rooms_given_pole but with ONLY the classrooms that are free at the given time + the next event start time.
+    rooms = []
+
+    src = selenium_get_schedule_page(pole_link)
+    if src is None:
+        return jsonify({"message": "Error in schedules data."})
+    infos = escrape_schedule_page(src)
+
+    for classroom in infos:
+        rooms.append(classroom["Classroom"])
+
+    return jsonify({"all_rooms": rooms})
+
+# Returns all the schedules for a room given the pole name and the room name.
 # {
-#   "free_classrooms": [
-#       {"Classroom": classroom_name, RESOURCE_ID_ROW_DYNAMIC: [schedule1, schedule2, ...], "NextStartTime": next_start_time},
-#       ...
-#   ]
+#  "classroom_name1": [
+#    "schedule1",
+#    ...
+#  ],
+#  ...
 # }
-# Where schedule is all the plain text in the <a> tag as str.
-# NextStartTime is optional (for example, absent if the classroom is free all day).
-def get_free_classrooms_given_pole():
+@app.route('/api/all_schedules_given_pole_and_room', methods = ['GET'])
+def all_schedules_given_pole_and_room():
     pole_name = request.args.get('pole_name')
-    
-    pole_url = get_pole_url(pole_name)
-    if isinstance(pole_url, Response):
-        # pole_url is a Response (jsonify).
-        return pole_url
+    classroom_name = request.args.get("classroom")
 
-    infos = escrape_page(pole_url)
-    infos_to_keep_with_next_start_time = process_datas(infos)
+    pole_link = ""
+    poles = fetch_poles_data()
+    if poles is None:
+        return jsonify({"message": "Error in fetching poles data."})
+    for pole in poles:
+        if pole_name.lower() in list(pole.keys())[0].lower():
+            pole_link = pole[list(pole.keys())[0]]
 
-    return jsonify({"free_classrooms": infos_to_keep_with_next_start_time})
+    if pole_link == "":
+        return jsonify({"message": "Invalid pole."})
 
-def main():
+    src = selenium_get_schedule_page(pole_link)
+    if src is None:
+        return jsonify({"message": "Error in schedules data."})
+    infos = escrape_schedule_page(src)
 
-    global driver, schedule_pages
+    return_classroom = ""
+    schedules = []
+    for classroom in infos:
+        current_classroom = classroom["Classroom"]
+        if current_classroom.lower() == classroom_name:
+            return_classroom = current_classroom
+            schedules = classroom[list(classroom.keys())[1]]
+            break
 
-    command = Popen("uname", stdout = PIPE, shell = True)
-    output, error = command.communicate()
-    output = output.decode("utf-8").strip().lower()
+    if return_classroom == "":
+        return jsonify({"message": "Invalid classroom name for this pole."})
 
-    # Chrome driver path.
-    chrome_driver_path = ""
-    if "darwin" in output:
-        # On my Mac.
+    return jsonify({return_classroom: schedules})
 
-        chrome_driver_path = '/Users/juliusnixi/chromedriver-mac-arm64/chromedriver'
+# Returns all the free rooms now given the pole name.
+# {
+#  "free_classrooms": [
+#    {"classroom_name1": "next_lecture_start"},
+#    ...
+#  ]
+# }
+@app.route('/api/free_classrooms_now_given_pole', methods = ['GET'])
+def free_classrooms_now_given_pole():
+    pole_name = request.args.get('pole_name')
 
-    elif "linux" in output:
-        # On my Ubuntu ARM64 server.
+    pole_link = ""
+    poles = fetch_poles_data()
+    if poles is None:
+        return jsonify({"message": "Error in fetching poles data."})
+    for pole in poles:
+        if pole_name.lower() in list(pole.keys())[0].lower():
+            pole_link = pole[list(pole.keys())[0]]
 
-        # sudo apt install chromium-chromedriver
+    if pole_link == "":
+        return jsonify({"message": "Invalid pole."})
 
-        from shutil import which
-        chrome_driver_path = which("chromedriver")
+    src = selenium_get_schedule_page(pole_link)
+    if src is None:
+        return jsonify({"message": "Error in schedules data."})
+    infos = escrape_schedule_page(src)
 
-    # Chrome options.
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
+    free_classrooms = get_free_classrooms_now(infos)
+    for classroom in free_classrooms:
+        for key, value in classroom.items():
+            classroom[key] = "Free until: " + str(classroom[key])
+            if "None" in classroom[key]:
+                classroom[key] = classroom[key].replace("None", "end of day")
 
-    service = Service(chrome_driver_path)
-
-    # Selenium driver setup.
-    driver = webdriver.Chrome(service = service, options = chrome_options)
-
-    # Before serving the APIs, we need to fetch all the schedules pages with a dedicated thread.
-    thread = Thread(target = get_all_schedules_pages_thread)
-    thread.start()
-    # Wait for it to collect all the schedules pages.
-    # (16 pages * 1 seconds to load JS).
-    total_time = 16
-    for i in range(total_time):
-        print(f"Waiting for schedules pages to be fetched... {total_time - i} seconds left.")
-        sleep(1)
-    print("Schedules pages fetched.")
+    return jsonify({"free_classrooms": free_classrooms}) 
 
 # Main entry point of the application.
 if __name__ == '__main__':
-
-    main()
 
     # In development, use Flask:
     app.run(debug = True, port = 8080, use_reloader = False)

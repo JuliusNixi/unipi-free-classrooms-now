@@ -30,8 +30,8 @@ def fetch_poles_data() -> Optional[List[Dict[str, str]]]:
     page = ""
     try:
         page = get(URL)
-        print("Error in web request to fetch poles data.")
     except:
+        print("Error in web request to fetch poles data.")
         return None
     if page.status_code != 200:
         print("Error in web request to fetch poles data. Wrong status code.")

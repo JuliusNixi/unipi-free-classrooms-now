@@ -160,8 +160,7 @@ def escrape_schedule_page(schedule_page_source) -> Optional[List[Dict[str, Union
         # Sometimes it happens.
         # E.g: 08:30 - 10:00Lettorato arabo
         if not '|' in parsed_a:
-            if "Piagge" in schedule_page_source:
-                print(str(a), end="\n\n\n")
+            print(str(a), end="\n\n\n")
             # Splitting manually.
             #time = parsed_a[0:13]
             #parsed_a = parsed_a[13:]

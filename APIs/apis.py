@@ -7,9 +7,6 @@ from selenium import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
 # When things get serious, types come in. To keep the code clean and readable.
 from typing import List, Dict, Optional, Union
@@ -23,7 +20,7 @@ from flask_cors import CORS
 from datetime import datetime
 
 from time import sleep
-from threading import Thread
+from threading import Thread, Lock
 
 # Platform checks.
 from platform import platform
@@ -34,7 +31,7 @@ def fetch_poles_data() -> Optional[List[Dict[str, str]]]:
     URL = "https://aule.webhost1.unipi.it/poli-didattici/"
     page = ""
     try:
-        page = get(URL)
+        page = get(URL, timeout=15)
     except:
         print("Error in web request to fetch poles data.")
         return None
@@ -61,7 +58,10 @@ def fetch_poles_data() -> Optional[List[Dict[str, str]]]:
 def selenium_get_schedule_page(pole_link, get_data_from_cache = True) -> Optional[str]:
     global src_schedules_page_cache
     if get_data_from_cache:
-        return src_schedules_page_cache[pole_link]
+        with cache_lock:
+            cached = src_schedules_page_cache.get(pole_link)
+        if cached is not None:
+            return cached
 
     # Chrome options.
     chrome_options = Options()
@@ -69,6 +69,7 @@ def selenium_get_schedule_page(pole_link, get_data_from_cache = True) -> Optiona
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
 
+    driver = None
     try:
         service = ""
         if "linux" in str(platform()).lower():
@@ -83,14 +84,24 @@ def selenium_get_schedule_page(pole_link, get_data_from_cache = True) -> Optiona
         driver.get(pole_link)
 
         # Not beautiful but I cannot make it works in async way due to JS execution used to fill the page.
-        sleep(sleep_loading_schedules_page_time)
+        sleep(5)
 
         page_source = str(driver.page_source)
 
+        # Update cache.
+        with cache_lock:
+            src_schedules_page_cache[pole_link] = page_source
+
         return page_source
-    except e as Exception:
-        print(e)
+    except Exception as e:
+        print(f"Selenium error for {pole_link}: {e}")
         return None
+    finally:
+        try:
+            if driver is not None:
+                driver.quit()
+        except:
+            pass
 
 # Returns an "infos" list, with the following structure:
 # [
@@ -330,7 +341,12 @@ def get_poles_data():
 #   ]
 # }
 def get_all_rooms_given_pole():
-    pole_name = request.args.get('pole_name').lower()
+    pole_name = request.args.get('pole_name')
+
+    if pole_name:
+        pole_name = pole_name.lower()
+    else:
+        return jsonify({"message": "Invalid pole."})
 
     pole_link = ""
     poles = fetch_poles_data()
@@ -365,8 +381,18 @@ def get_all_rooms_given_pole():
 # }
 @app.route('/api/all_schedules_given_pole_and_room', methods = ['GET'])
 def all_schedules_given_pole_and_room():
-    pole_name = request.args.get('pole_name').lower()
-    classroom_name = request.args.get("classroom").lower()
+    pole_name = request.args.get('pole_name')
+    classroom_name = request.args.get("classroom")
+
+    if pole_name:
+        pole_name = pole_name.lower()
+    else:
+        return jsonify({"message": "Invalid pole."})
+
+    if classroom_name:
+        classroom_name = classroom_name.lower()
+    else:
+        return jsonify({"message": "Invalid classroom name for this pole."})
 
     pole_link = ""
     poles = fetch_poles_data()
@@ -407,7 +433,12 @@ def all_schedules_given_pole_and_room():
 # }
 @app.route('/api/free_classrooms_now_given_pole', methods = ['GET'])
 def free_classrooms_now_given_pole():
-    pole_name = request.args.get('pole_name').lower()
+    pole_name = request.args.get('pole_name')
+
+    if pole_name:
+        pole_name = pole_name.lower()
+    else:
+        return jsonify({"message": "Invalid pole."})
 
     pole_link = ""
     poles = fetch_poles_data()
@@ -440,8 +471,18 @@ def free_classrooms_now_given_pole():
 # }
 @app.route('/api/current_schedule_given_pole_and_room', methods = ['GET'])
 def current_schedule_given_pole_and_room():
-    pole_name = request.args.get('pole_name').lower()
-    classroom_name = request.args.get("classroom").lower()
+    pole_name = request.args.get('pole_name')
+    classroom_name = request.args.get("classroom")
+
+    if pole_name:
+        pole_name = pole_name.lower()
+    else:
+        return jsonify({"message": "Invalid pole."})
+
+    if classroom_name:
+        classroom_name = classroom_name.lower()
+    else:
+        return jsonify({"message": "Invalid classroom name for this pole."})
 
     pole_link = ""
     poles = fetch_poles_data()
@@ -498,16 +539,24 @@ def current_schedule_given_pole_and_room():
     return jsonify({return_classroom: return_schedule})
 
 src_schedules_page_cache = {}
-sleep_loading_schedules_page_time = 5
-n_poles = 16
+cache_lock = Lock()
 def src_schedules_page_cache_thread():
     # Initialization.
     global src_schedules_page_cache
-    poles = fetch_poles_data()
-    for pole in poles:
-        for key, value in pole.items():
-            src_schedules_page_cache[value] = selenium_get_schedule_page(value, False)
-    print("Cache initialization completed.")
+    try:
+        poles = fetch_poles_data()
+        if poles is None:
+            raise Exception()
+        for pole in poles:
+            for key, value in pole.items():
+                src = selenium_get_schedule_page(value, False)
+                if src is None:
+                    raise Exception()
+                with cache_lock:
+                    src_schedules_page_cache[value] = src
+        print("Cache initialization completed.")
+    except Exception as e:
+        print(f"Cache initialization error: {e}")
 
     # 15 minutes.
     clean_cache_after_seconds = 900
@@ -515,23 +564,29 @@ def src_schedules_page_cache_thread():
     while True:
         sleep(1)
         seconds_counter += 1
-        if seconds_counter == clean_cache_after_seconds:
+        if seconds_counter >= clean_cache_after_seconds:
             seconds_counter = 0
-            poles = fetch_poles_data()
-            for pole in poles:
-                for key, value in pole.items():
-                    src_schedules_page_cache[value] = selenium_get_schedule_page(value, False)
-            print("Cached updated.")
+            try:
+                poles = fetch_poles_data()
+                if poles is None:
+                    raise Exception()
+                for pole in poles:
+                    for key, value in pole.items():
+                        src = selenium_get_schedule_page(value, False)
+                        if src is None:
+                            raise Exception()
+                        with cache_lock:
+                            src_schedules_page_cache[value] = src
+                print("Cache update completed.")
+            except Exception as e:
+                print(f"Cache update error: {e}")
 
 
 def main():
     print("Starting schedules cache thread...")
-    cache_thread = Thread(target = src_schedules_page_cache_thread)
-    cache_thread.daemon = True
+    cache_thread = Thread(target = src_schedules_page_cache_thread, daemon=True)
     cache_thread.start()
     print("Cache thread started.")
-    print("Sleeping to fill cache...")
-    sleep(sleep_loading_schedules_page_time * n_poles + sleep_loading_schedules_page_time)
     print("Initialization completed, starting serving requests.")
 
 

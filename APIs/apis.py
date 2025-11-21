@@ -250,6 +250,7 @@ def escrape_schedule_page(schedule_page_source) -> Optional[List[Dict[str, Union
         for counter in range(len(schedules)):
             if "Proseguimento" in schedules[counter]:
                 print(unparsed_tmp)
+                print(schedules[counter])
             cu = 0
             for u in unparsed_tmp:
                 if schedules[counter].startswith(u):

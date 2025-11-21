@@ -23,6 +23,9 @@ from flask_cors import CORS
 from datetime import datetime
 
 from time import sleep
+from threading import Thread
+
+# Platform checks.
 from platform import platform
 from os import environ
 
@@ -55,7 +58,11 @@ def fetch_poles_data() -> Optional[List[Dict[str, str]]]:
     return poles
 
 # From the pole link get with selenium the schedule page source content as str.
-def selenium_get_schedule_page(pole_link) -> Optional[str]:
+def selenium_get_schedule_page(pole_link, get_data_from_cache = True) -> Optional[str]:
+    global src_schedules_page_cache
+    if get_data_from_cache:
+        return src_schedules_page_cache[pole_link]
+
     # Chrome options.
     chrome_options = Options()
     chrome_options.add_argument("--headless")
@@ -76,12 +83,13 @@ def selenium_get_schedule_page(pole_link) -> Optional[str]:
         driver.get(pole_link)
 
         # Not beautiful but I cannot make it works in async way due to JS execution used to fill the page.
-        sleep(3)
+        sleep(sleep_loading_schedules_page_time)
 
         page_source = str(driver.page_source)
 
         return page_source
-    except:
+    except e as Exception:
+        print(e)
         return None
 
 # Returns an "infos" list, with the following structure:
@@ -322,7 +330,7 @@ def get_poles_data():
 #   ]
 # }
 def get_all_rooms_given_pole():
-    pole_name = request.args.get('pole_name')
+    pole_name = request.args.get('pole_name').lower()
 
     pole_link = ""
     poles = fetch_poles_data()
@@ -357,8 +365,8 @@ def get_all_rooms_given_pole():
 # }
 @app.route('/api/all_schedules_given_pole_and_room', methods = ['GET'])
 def all_schedules_given_pole_and_room():
-    pole_name = request.args.get('pole_name')
-    classroom_name = request.args.get("classroom")
+    pole_name = request.args.get('pole_name').lower()
+    classroom_name = request.args.get("classroom").lower()
 
     pole_link = ""
     poles = fetch_poles_data()
@@ -399,7 +407,7 @@ def all_schedules_given_pole_and_room():
 # }
 @app.route('/api/free_classrooms_now_given_pole', methods = ['GET'])
 def free_classrooms_now_given_pole():
-    pole_name = request.args.get('pole_name')
+    pole_name = request.args.get('pole_name').lower()
 
     pole_link = ""
     poles = fetch_poles_data()
@@ -426,8 +434,105 @@ def free_classrooms_now_given_pole():
 
     return jsonify({"free_classrooms": free_classrooms}) 
 
+# Returns the current (now) schedule or None for a given classroom in a given pole
+# {
+#  "classroom_name": "schedule"
+# }
+@app.route('/api/current_schedule_given_pole_and_room', methods = ['GET'])
+def current_schedule_given_pole_and_room():
+    pole_name = request.args.get('pole_name').lower()
+    classroom_name = request.args.get("classroom").lower()
+
+    pole_link = ""
+    poles = fetch_poles_data()
+    if poles is None:
+        return jsonify({"message": "Error in fetching poles data."})
+    for pole in poles:
+        if pole_name.lower() in list(pole.keys())[0].lower():
+            pole_link = pole[list(pole.keys())[0]]
+
+    if pole_link == "":
+        return jsonify({"message": "Invalid pole."})
+
+    src = selenium_get_schedule_page(pole_link)
+    if src is None:
+        return jsonify({"message": "Error in schedules data."})
+    infos = escrape_schedule_page(src)
+
+    return_classroom = ""
+    schedules = []
+    for classroom in infos:
+        current_classroom = classroom["Classroom"]
+        if current_classroom.lower() == classroom_name:
+            return_classroom = current_classroom
+            schedules = classroom[list(classroom.keys())[1]]
+            break
+
+    if return_classroom == "":
+        return jsonify({"message": "Invalid classroom name for this pole."})
+
+    # Now.
+    time = datetime.now()
+
+    year = time.year
+    month = time.month
+    day = time.day
+    minute = time.minute
+    hour = time.hour
+
+    return_schedule = ""
+    for schedule in schedules:
+        timestartend = schedule.split("|")[0]
+
+        timestart = datetime.strptime(timestartend.split("-")[0].strip(), "%H:%M")
+        timeend = datetime.strptime(timestartend.split("-")[1].strip(), "%H:%M")
+
+        timestart = datetime(year=year, month=month, day=day, hour=timestart.hour, minute=timestart.minute)
+        timeend = datetime(year=year, month=month, day=day, hour=timeend.hour, minute=timeend.minute)
+
+        if timestart <= time <= timeend:
+            return_schedule = schedule
+            break
+
+
+    return jsonify({return_classroom: return_schedule})
+
+src_schedules_page_cache = {}
+sleep_loading_schedules_page_time = 5
+n_poles = 16
+def src_schedules_page_cache_thread():
+    # Initialization.
+    global src_schedules_page_cache
+    poles = fetch_poles_data()
+    for pole in poles:
+        for key, value in pole.items():
+            src_schedules_page_cache[value] = selenium_get_schedule_page(value, False)
+    print("Cache initialization completed.")
+
+    # 15 minutes.
+    clean_cache_after_seconds = 900
+    seconds_counter = 0
+    while True:
+        sleep(1)
+        seconds_counter += 1
+        if seconds_counter == clean_cache_after_seconds:
+            seconds_counter = 0
+            poles = fetch_poles_data()
+            for pole in poles:
+                for key, value in pole.items():
+                    src_schedules_page_cache[value] = selenium_get_schedule_page(value, False)
+            print("Cached updated.")
+
+
 def main():
-    print("Starting...")
+    print("Starting schedules cache thread...")
+    cache_thread = Thread(target = src_schedules_page_cache_thread)
+    cache_thread.start()
+    print("Cache thread started.")
+    print("Sleeping to fill cache...")
+    sleep(sleep_loading_schedules_page_time * n_poles + sleep_loading_schedules_page_time)
+    print("Initialization completed, starting serving requests.")
+
 
 # Main entry point of the application.
 if __name__ == '__main__':

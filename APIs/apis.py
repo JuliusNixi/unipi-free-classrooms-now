@@ -155,6 +155,17 @@ def escrape_schedule_page(schedule_page_source) -> Optional[List[Dict[str, Union
                 parsed_a += "|".join(lines)
             else:
                 parsed_a += s.text + "|"
+
+        # Check for missing <br> after the time start - time end.
+        # Sometimes it happens.
+        # E.g: 08:30 - 10:00Lettorato arabo
+        if not '-' in parsed_a.split("|")[0]:
+            # Splitting manually.
+            time = parsed_a[0:13]
+            parsed_a = parsed_a[13:]
+            parsed_a = time + "|" + parsed_a
+            # Missing the parsing of the rest of the string, but I don't know how to do it, since there are not delimiters.
+
         all_parsed_a.append(parsed_a)
         parsed_a = ""
     rows_second = second_table.find_all("table")[0].find_all("tr")

@@ -149,9 +149,6 @@ def escrape_schedule_page(schedule_page_source) -> Optional[List[Dict[str, Union
         spans = a.find_all("span")
         for s in spans:
             brs = s.find_all("br")
-            if "Piagge" in schedule_page_source:
-                print(s, end="\n\n")
-                print(brs)
             if len(brs) > 0:
                 content = s.decode_contents()
                 lines = [line.strip().replace("\t", "") for line in content.split("<br/>") if line.strip()]
@@ -162,11 +159,13 @@ def escrape_schedule_page(schedule_page_source) -> Optional[List[Dict[str, Union
         # Check for missing <br> after the time start - time end.
         # Sometimes it happens.
         # E.g: 08:30 - 10:00Lettorato arabo
-        if not '-' in parsed_a.split("|")[0]:
+        if not '|' in parsed_a:
+            if "Piagge" in schedule_page_source:
+                print(str(a), end="\n\n\n")
             # Splitting manually.
-            time = parsed_a[0:13]
-            parsed_a = parsed_a[13:]
-            parsed_a = time + "|" + parsed_a
+            #time = parsed_a[0:13]
+            #parsed_a = parsed_a[13:]
+            #parsed_a = time + "|" + parsed_a
             # Missing the parsing of the rest of the string, but I don't know how to do it, since there are not delimiters.
 
         all_parsed_a.append(parsed_a)

@@ -527,6 +527,7 @@ def src_schedules_page_cache_thread():
 def main():
     print("Starting schedules cache thread...")
     cache_thread = Thread(target = src_schedules_page_cache_thread)
+    cache_thread.daemon = True
     cache_thread.start()
     print("Cache thread started.")
     print("Sleeping to fill cache...")

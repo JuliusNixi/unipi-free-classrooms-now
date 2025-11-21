@@ -160,8 +160,8 @@ def escrape_schedule_page(schedule_page_source) -> Optional[List[Dict[str, Union
         # Sometimes it happens.
         # E.g: 08:30 - 10:00Lettorato arabo
         if not '|' in parsed_a or "Proseguimento" in parsed_a:
-            print(str(a), end="\n\n\n")
-            print(parsed_a)
+            print(str(a))
+            print(parsed_a, end="\n\n-----------------------\n\n")
             # Splitting manually.
             #time = parsed_a[0:13]
             #parsed_a = parsed_a[13:]
@@ -248,6 +248,8 @@ def escrape_schedule_page(schedule_page_source) -> Optional[List[Dict[str, Union
         rsid = list(classroom.keys())[1]
         schedules = classroom[rsid]
         for counter in range(len(schedules)):
+            if "Proseguimento" in schedules[counter]:
+                print(unparsed_tmp)
             cu = 0
             for u in unparsed_tmp:
                 if schedules[counter].startswith(u):

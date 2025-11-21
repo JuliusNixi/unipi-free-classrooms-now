@@ -159,7 +159,7 @@ def escrape_schedule_page(schedule_page_source) -> Optional[List[Dict[str, Union
         # Check for missing <br> after the time start - time end.
         # Sometimes it happens.
         # E.g: 08:30 - 10:00Lettorato arabo
-        if not '|' in parsed_a:
+        if not '|' in parsed_a or "Proseguimento" in parsed_a:
             print(str(a), end="\n\n\n")
             # Splitting manually.
             #time = parsed_a[0:13]

@@ -156,18 +156,6 @@ def escrape_schedule_page(schedule_page_source) -> Optional[List[Dict[str, Union
             else:
                 parsed_a += s.text + "|"
 
-        # Check for missing <br> after the time start - time end.
-        # Sometimes it happens.
-        # E.g: 08:30 - 10:00Lettorato arabo
-        if not '|' in parsed_a or "Proseguimento" in parsed_a:
-            print(str(a))
-            print(parsed_a, end="\n\n-----------------------\n\n")
-            # Splitting manually.
-            #time = parsed_a[0:13]
-            #parsed_a = parsed_a[13:]
-            #parsed_a = time + "|" + parsed_a
-            # Missing the parsing of the rest of the string, but I don't know how to do it, since there are not delimiters.
-
         all_parsed_a.append(parsed_a)
         parsed_a = ""
     rows_second = second_table.find_all("table")[0].find_all("tr")
@@ -248,12 +236,9 @@ def escrape_schedule_page(schedule_page_source) -> Optional[List[Dict[str, Union
         rsid = list(classroom.keys())[1]
         schedules = classroom[rsid]
         for counter in range(len(schedules)):
-            if "Proseguimento" in schedules[counter]:
-                print(unparsed_tmp)
-                print(schedules[counter])
             cu = 0
             for u in unparsed_tmp:
-                if schedules[counter].startswith(u[0:20]):
+                if schedules[counter].startswith(u[0:30]):
                     schedules[counter] = all_parsed_a[cu]
                     break
                 cu += 1

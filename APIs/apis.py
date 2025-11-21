@@ -147,11 +147,11 @@ def escrape_schedule_page(schedule_page_source) -> Optional[List[Dict[str, Union
     all_parsed_a = []
     for a in all_schedules_a:
         spans = a.find_all("span")
-        if "Piagge" in schedule_page_source:
-            print(a)
-            print(spans)
         for s in spans:
             brs = s.find_all("br")
+            if "Piagge" in schedule_page_source:
+                print(s, end="\n\n")
+                print(brs)
             if len(brs) > 0:
                 content = s.decode_contents()
                 lines = [line.strip().replace("\t", "") for line in content.split("<br/>") if line.strip()]

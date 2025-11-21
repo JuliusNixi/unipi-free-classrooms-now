@@ -147,6 +147,9 @@ def escrape_schedule_page(schedule_page_source) -> Optional[List[Dict[str, Union
     all_parsed_a = []
     for a in all_schedules_a:
         spans = a.find_all("span")
+        if "Piagge" in schedule_page_source:
+            print(a)
+            print(spans)
         for s in spans:
             brs = s.find_all("br")
             if len(brs) > 0:

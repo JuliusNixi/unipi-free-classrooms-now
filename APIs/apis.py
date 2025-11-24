@@ -235,11 +235,10 @@ def escrape_schedule_page(schedule_page_source) -> Optional[List[Dict[str, Union
     for classroom in infos:
         rsid = list(classroom.keys())[1]
         schedules = classroom[rsid]
-        print(schedules, unparsed_tmp)
         for counter in range(len(schedules)):
             cu = 0
             for u in unparsed_tmp:
-                if schedules[counter].startswith(u[0:30]):
+                if schedules[counter].startswith(u[0:20]):
                     schedules[counter] = all_parsed_a[cu]
                     break
                 cu += 1

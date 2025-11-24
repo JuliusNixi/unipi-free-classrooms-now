@@ -238,6 +238,7 @@ def escrape_schedule_page(schedule_page_source) -> Optional[List[Dict[str, Union
         for counter in range(len(schedules)):
             cu = 0
             for u in unparsed_tmp:
+                print(schedules[counter], u, end="\n\n")
                 if schedules[counter].startswith(u[0:30]):
                     schedules[counter] = all_parsed_a[cu]
                     break
@@ -524,7 +525,6 @@ def current_schedule_given_pole_and_room():
 
     return_schedule = ""
     for schedule in schedules:
-        print(schedule)
         timestartend = schedule.split("|")[0]
 
         timestart = datetime.strptime(timestartend.split("-")[0].strip(), "%H:%M")

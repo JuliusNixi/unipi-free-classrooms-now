@@ -524,6 +524,7 @@ def current_schedule_given_pole_and_room():
 
     return_schedule = ""
     for schedule in schedules:
+        print(schedule)
         timestartend = schedule.split("|")[0]
 
         timestart = datetime.strptime(timestartend.split("-")[0].strip(), "%H:%M")

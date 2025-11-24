@@ -28,5 +28,13 @@ Yes, sure, you will need a full server with Python 3 and the "APIs/python_requir
 ## Can I use your hosted APIs to build other things?
 Yes, but as previosly mentioned, my little free cloud machine is precarious, so do so at your own risk.
 
+URL: **vps.giulionisi.me:54321/api/**<br>
+Endpoints:
+- _current_schedule_given_pole_and_room?pole_name=XXX&classroom=YYY_
+- _free_classrooms_now_given_pole?pole_name=XXX_
+- _all_schedules_given_pole_and_room?pole_name=XXX&classroom=YYY_
+- _get_all_rooms_given_pole?pole_name=XXX_
+- _poles_data_
+
 ## Disclaimer
 This tool is UNOFFICIAL, developed by a student who disclaims any responsibility as to the reliability of this data.

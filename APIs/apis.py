@@ -239,7 +239,7 @@ def escrape_schedule_page(schedule_page_source) -> Optional[List[Dict[str, Union
             cu = 0
             for u in unparsed_tmp:
                 if schedules[counter].startswith(u[0:20]):
-                    schedules[counter] = all_parsed_a[cu]
+                    schedules[counter] = all_parsed_a[cu].replace("&amp;", "")
                     break
                 cu += 1
 
